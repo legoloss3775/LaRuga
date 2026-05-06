@@ -1,0 +1,11 @@
+
+Mods: {
+	LaRuga: {
+		Items: {
+			LaRugasDemise: {
+				DisplayName: La Rugas Demise
+				Tooltip: This is a basic modded sword.
+			}
+		}
+	}
+}
