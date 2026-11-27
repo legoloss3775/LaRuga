@@ -1,5 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
+using System;
 using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.ID;
@@ -11,7 +10,20 @@ public class LaRugaEnemy : ModNPC
 {
     public bool IsFeastTime;
 
-    private float _speedMultiplier = 1.5f;
+    private void StartFeast()
+    {
+        IsFeastTime = true;
+        NPC.noTileCollide = true;
+        NPC.noGravity = true;
+        Music = MusicLoader.GetMusicSlot(Mod, "Sounds/Music/larugafight");
+    }
+
+    private Vector2 GetPlayerDirection()
+    {
+        if (!NPC.HasValidTarget) return Vector2.Zero;
+        Vector2 player_center = Main.player[NPC.target].Center;
+        return Vector2.Normalize(NPC.Center.DirectionTo(player_center));
+    }
 
     public override void SetStaticDefaults()
     {
@@ -20,128 +32,63 @@ public class LaRugaEnemy : ModNPC
 
     public override void SetDefaults()
     {
-        Player[] player = Main.player;
-        foreach (Player player2 in player)
-        {
-            if (Utils.Distance(player2.position, NPC.position) <= 10f)
-            {
-                int defense = player2.statDefense;
-                if (defense <= 0)
-                {
-                    defense = 1;
-                }
-                NPC.damage = player2.statLifeMax2 + defense;
-            }
-        }
-
         Music = MusicLoader.GetMusicSlot(Mod, "Sounds/Music/larugaembient");
-        NPC.knockBackResist = 0f;
-        NPC.aiStyle = 0;
+        NPC.knockBackResist = 1f;
+        NPC.aiStyle = NPCAIStyleID.FaceClosestPlayer;
         NPC.boss = true;
-        AnimationType = 1;
+        AnimationType = NPCID.None;
         NPC.noTileCollide = false;
-        NPC.width = 160;
-        NPC.height = 150;
-        NPC.lifeMax = 110000;
-        NPC.defense = 0;
+        NPC.width = 206;
+        NPC.height = 158;
+        NPC.lifeMax = 110067;
+        NPC.defense = 1;
+        NPC.damage = 9999;
         NPC.value = 500f;
         NPC.HitSound = SoundID.DeerclopsScream;
         NPC.DeathSound = SoundID.DeerclopsDeath;
+        NPC.netAlways = true;
+        NPC.noGravity = false;
     }
 
     public override void AI()
     {
-        if (NPC.justHit)
-        {
-            StartFeast();
-        }
         if (!IsFeastTime)
         {
-            return;
-        }
-        NPC.TargetClosest(true);
-        Vector2 position = Main.player[NPC.target].position;
-        if (position.X < NPC.position.X && NPC.velocity.X > -12f * _speedMultiplier)
-        {
-            NPC.velocity.X -= 0.22f * _speedMultiplier;
-        }
-        if (position.X > NPC.position.X && NPC.velocity.X < 12f * _speedMultiplier)
-        {
-            NPC.velocity.X += 0.22f * _speedMultiplier;
-        }
-        if (position.Y < NPC.position.Y)
-        {
-            if (NPC.velocity.Y < 0f && NPC.velocity.Y > -6f * _speedMultiplier)
+            if (NPC.justHit)
             {
-                NPC.velocity.Y -= 0.7f * _speedMultiplier;
-            }
-            else
-            {
-                NPC.velocity.Y -= 0.8f * _speedMultiplier;
-            }
-        }
-        if (position.Y > NPC.position.Y)
-        {
-            if (NPC.velocity.Y > 0f && NPC.velocity.Y < 6f * _speedMultiplier)
-            {
-                NPC.velocity.Y += 0.7f * _speedMultiplier;
-            }
-            else
-            {
-                NPC.velocity.Y += 0.8f * _speedMultiplier;
-            }
-        }
-        NPC nPC = NPC;
-        nPC.position = nPC.position + NPC.velocity;
-    }
-
-    private void StartFeast()
-    {
-        IsFeastTime = true;
-        NPC.noTileCollide = true;
-        Music = MusicLoader.GetMusicSlot(Mod, "Sounds/Music/larugafight");
-    }
-
-    public override float SpawnChance(NPCSpawnInfo spawnInfo)
-    {
-        // 3284 - ColossalSquid
-        return ((ModNPC)ModLoader.GetMod("CalamityMod").GetContent().ToArray()[3284]).SpawnChance(spawnInfo);
-    }
-
-    public override void FindFrame(int frameHeight)
-    {
-        if (NPC.velocity.Y == 0f)
-        {
-            NPC.spriteDirection = NPC.direction;
-            if (NPC.velocity.X == 0f)
-            {
-                NPC.frame.Y = 0;
-                NPC.frameCounter = 0.0;
-            }
-            NPC nPC = NPC;
-            nPC.frameCounter += 1.0;
-            if (NPC.frameCounter > 5.0)
-            {
-                NPC.frame.Y = NPC.frame.Y + 158;
-                NPC.frameCounter = 0.0;
-            }
-            if (NPC.frame.Y >= 158)
-            {
-                NPC.frame.Y = 0;
+                StartFeast();
             }
         }
         else
         {
-            if (NPC.velocity.Y < -12f * _speedMultiplier)
-            {
-                NPC.frameCounter = 0.0;
-                NPC.frame.Y = 158;
+            NPC.velocity = Vector2.Lerp(NPC.velocity, 40f * GetPlayerDirection(), .05f);
+            NPC.rotation = NPC.direction * MathF.Sin(.01f * NPC.velocity.Length());
+        }
+    }
+
+    public override float SpawnChance(NPCSpawnInfo spawnInfo)
+    {
+        if (ModLoader.TryGetMod("CalamityMod", out Mod calamity_mod)) {
+            if (calamity_mod.TryFind("ColossalSquid", out ModNPC colossal_squid)) {
+                return colossal_squid.SpawnChance(spawnInfo);
             }
-            if (NPC.velocity.Y > 12f * _speedMultiplier)
-            {
-                NPC.frameCounter = 0.0;
-                NPC.frame.Y = 158;
-            }
+        }
+        return 0; // colossal squid does not exist
+    }
+
+    public override void FindFrame(int frameHeight)
+    {
+        if (!IsFeastTime)
+        {
+            NPC.frame.Y = 0;
+            return;
+        }
+
+        NPC.frameCounter += Math.Round(NPC.velocity.Length());
+        NPC.spriteDirection = NPC.direction;
+        if (NPC.frameCounter >= 100f) {
+            NPC.frame.Y = NPC.frame.Y >= NPC.height ? 0 : frameHeight;
+            NPC.frameCounter = 0;
         }
     }
 }
